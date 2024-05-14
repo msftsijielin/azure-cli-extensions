@@ -76,6 +76,7 @@ class TunnelServer:
             return is_port_open
 
     def _get_auth_token(self):
+        print("in _get_auth_token")
         profile = Profile(cli_ctx=self.cli_ctx)
         # Generate an Azure token with the VSTS resource app id
         auth_token, _, _ = profile.get_raw_token()
@@ -93,11 +94,13 @@ class TunnelServer:
         else:
             custom_header = {}
 
+        print("Content: %s", str(content))
         logger.debug("Content: %s", str(content))
         web_address = f"https://{self.bastion_endpoint}/api/tokens"
-        response = requests.post(web_address, data=content, headers=custom_header,
-                                 verify=not should_disable_connection_verify())
+        response = requests.post(web_address, data=content, headers=custom_header, verify=False)
         response_json = None
+
+        print("Response: %s", str(response.content))
 
         if response.content is not None:
             response_json = json.loads(response.content.decode("utf-8"))
@@ -121,16 +124,18 @@ class TunnelServer:
             self.client, _address = self.sock.accept()
 
             auth_token = self._get_auth_token()
-            if self.bastion['sku']['name'] == BastionSku.QuickConnect.name or \
-               self.bastion['sku']['name'] == BastionSku.Developer.name:
-                host = f"wss://{self.bastion_endpoint}/omni/webtunnel/{auth_token}"
-            else:
-                host = f"wss://{self.bastion_endpoint}/webtunnelv2/{auth_token}?X-Node-Id={self.node_id}"
+            # if self.bastion['sku']['name'] == BastionSku.QuickConnect.name or \
+            #    self.bastion['sku']['name'] == BastionSku.Developer.name:
+            #     host = f"wss://{self.bastion_endpoint}/omni/webtunnel/{auth_token}"
+            # else:
+            host = f"wss://{self.bastion_endpoint}/webtunnelv2/{auth_token}?X-Node-Id={self.node_id}"
 
-            verify_mode = ssl.CERT_NONE if should_disable_connection_verify() else ssl.CERT_REQUIRED
+            #verify_mode = ssl.CERT_NONE if should_disable_connection_verify() else ssl.CERT_REQUIRED
+            print(host)
+
             self.ws = create_connection(host,
                                         sockopt=((socket.IPPROTO_TCP, socket.TCP_NODELAY, 1),),
-                                        sslopt={'cert_reqs': verify_mode},
+                                        sslopt={'cert_reqs': ssl.CERT_NONE},
                                         enable_multithread=True)
             logger.info('Websocket, connected status: %s', self.ws.connected)
             index = index + 1
@@ -205,7 +210,7 @@ class TunnelServer:
 
             web_address = f"https://{self.bastion_endpoint}/api/tokens/{self.last_token}"
             response = requests.delete(web_address, headers=custom_header,
-                                       verify=not should_disable_connection_verify())
+                                       verify=False)
             if response.status_code == 404:
                 logger.info('Session already deleted')
             elif response.status_code not in [200, 204]:

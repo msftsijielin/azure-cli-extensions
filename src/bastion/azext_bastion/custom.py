@@ -231,24 +231,28 @@ def _get_rdp_path(rdp_command="mstsc"):
 
 def rdp_bastion_host(cmd, target_resource_id, target_ip_address, resource_group_name, bastion_host_name,
                      auth_type=None, resource_port=None, disable_gateway=False, configure=False, enable_mfa=False):
+    print("in rdp_bastion_host")
     import os
     from azure.cli.core._profile import Profile
     from ._process_helper import launch_and_wait
     from .aaz.latest.network.bastion import Show
 
-    bastion = Show(cli_ctx=cmd.cli_ctx)(command_args={
-        "resource_group": resource_group_name,
-        "name": bastion_host_name
-    })
+    # bastion = Show(cli_ctx=cmd.cli_ctx)(command_args={
+    #     "resource_group": resource_group_name,
+    #     "name": bastion_host_name
+    # })
+    bastion = None
+    print("Hello")
 
     if not resource_port:
         resource_port = 3389
 
-    if bastion['sku']['name'] == BastionSku.Basic.value or bastion['sku']['name'] == BastionSku.Standard.value and \
-       bastion['enableTunneling'] is not True:
-        raise ClientRequestError('Bastion Host SKU must be Standard and Native Client must be enabled.')
+    # if bastion['sku']['name'] == BastionSku.Basic.value or bastion['sku']['name'] == BastionSku.Standard.value and \
+    #    bastion['enableTunneling'] is not True:
+    #     raise ClientRequestError('Bastion Host SKU must be Standard and Native Client must be enabled.')
 
-    ip_connect = _is_ipconnect_request(bastion, target_ip_address)
+    # ip_connect = _is_ipconnect_request(bastion, target_ip_address)
+    ip_connect = False
 
     if auth_type is None:
         # do nothing
@@ -273,8 +277,8 @@ def rdp_bastion_host(cmd, target_resource_id, target_ip_address, resource_group_
         target_resource_id = f"/subscriptions/{get_subscription_id(cmd.cli_ctx)}/resourceGroups/{resource_group_name}" \
                              f"/providers/Microsoft.Network/bh-hostConnect/{target_ip_address}"
 
-    _validate_resourceid(target_resource_id)
-    bastion_endpoint = _get_bastion_endpoint(cmd, bastion, resource_port, target_resource_id)
+    #_validate_resourceid(target_resource_id)
+    bastion_endpoint = "localhost:8443"
 
     if platform.system() == "Windows":
         if disable_gateway or ip_connect:
@@ -290,6 +294,7 @@ def rdp_bastion_host(cmd, target_resource_id, target_ip_address, resource_group_
         else:
             access_token = Profile(cli_ctx=cmd.cli_ctx).get_raw_token()[0][2].get("accessToken")
             logger.debug("Response %s", access_token)
+            print("Response %s", access_token)
             web_address = f"https://{bastion_endpoint}/api/rdpfile?resourceId={target_resource_id}&format=rdp" \
                           f"&rdpport={resource_port}&enablerdsaad={enable_mfa}"
 
@@ -300,7 +305,8 @@ def rdp_bastion_host(cmd, target_resource_id, target_ip_address, resource_group_
                 "Connection": "keep-alive",
                 "Content-Type": "application/json"
             }
-            response = requests.get(web_address, headers=headers)
+            response = requests.get(web_address, headers=headers, verify=False)
+            print("response: ", response)
             if not response.ok:
                 handle_error_response(response)
 
@@ -378,6 +384,8 @@ def _tunnel_close_handler(tunnel):
 def create_bastion_tunnel(cmd, target_resource_id, target_ip_address, resource_group_name, bastion_host_name,
                           resource_port, port, timeout=None):
 
+    print("in create_bastion_tunnel")
+
     from .aaz.latest.network.bastion import Show
     bastion = Show(cli_ctx=cmd.cli_ctx)(command_args={
         "resource_group": resource_group_name,
@@ -397,8 +405,8 @@ def create_bastion_tunnel(cmd, target_resource_id, target_ip_address, resource_g
         raise UnrecognizedArgumentError("Custom ports are not allowed. Allowed ports for Tunnel with IP connect is \
                                         22, 3389.")
 
-    _validate_resourceid(target_resource_id)
-    bastion_endpoint = _get_bastion_endpoint(cmd, bastion, resource_port, target_resource_id)
+    #_validate_resourceid(target_resource_id)
+    bastion_endpoint = "localhost:8443"
 
     tunnel_server = _get_tunnel(cmd, bastion, bastion_endpoint, target_resource_id, resource_port, port)
     if ip_connect:
